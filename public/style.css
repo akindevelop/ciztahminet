@@ -1,0 +1,131 @@
+/* --- TEMA MOTORU (CSS DEĞİŞKENLERİ) --- */
+:root, body.theme-classic {
+    --bg-main: #f4f6f8;
+    --bg-box: #ffffff;
+    --bg-light: #f9f9f9;
+    --text-main: #333333;
+    --text-heading: #2c3e50;
+    --primary: #3498db;
+    --primary-hover: #2980b9;
+    --danger: #e74c3c;
+    --danger-hover: #c0392b;
+    --border-color: #cccccc;
+}
+
+body.theme-ocean {
+    --bg-main: #e0f7fa;
+    --bg-box: #ffffff;
+    --bg-light: #e0f2f1;
+    --text-main: #004d40;
+    --text-heading: #006064;
+    --primary: #00acc1;
+    --primary-hover: #00838f;
+    --danger: #e53935;
+    --danger-hover: #c62828;
+    --border-color: #b2ebf2;
+}
+
+body.theme-nature {
+    --bg-main: #e8f5e9;
+    --bg-box: #ffffff;
+    --bg-light: #f1f8e9;
+    --text-main: #1b5e20;
+    --text-heading: #2e7d32;
+    --primary: #43a047;
+    --primary-hover: #2e7d32;
+    --danger: #e53935;
+    --danger-hover: #c62828;
+    --border-color: #c8e6c9;
+}
+
+body.theme-sunset {
+    --bg-main: #fff3e0;
+    --bg-box: #ffffff;
+    --bg-light: #fff8e1;
+    --text-main: #e65100;
+    --text-heading: #bf360c;
+    --primary: #ff9800;
+    --primary-hover: #f57c00;
+    --danger: #e53935;
+    --danger-hover: #c62828;
+    --border-color: #ffe0b2;
+}
+
+body.theme-dark {
+    --bg-main: #121212;
+    --bg-box: #1e1e1e;
+    --bg-light: #2c2c2c;
+    --text-main: #e0e0e0;
+    --text-heading: #ffffff;
+    --primary: #bb86fc;
+    --primary-hover: #9965f4;
+    --danger: #cf6679;
+    --danger-hover: #b33951;
+    --border-color: #333333;
+}
+
+/* --- GENEL TASARIM --- */
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+/* Yumuşak Tema Geçişi (Sihir burada) */
+body { background-color: var(--bg-main); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; transition: background-color 0.5s ease, color 0.5s ease; }
+
+.screen { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+.hidden { display: none !important; }
+
+/* Tema Seçici Kutu */
+.theme-picker { position: absolute; top: 20px; right: 20px; background: var(--bg-box); padding: 10px 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; z-index: 1000; border: 1px solid var(--border-color); transition: all 0.3s ease; }
+.theme-picker select { border: 1px solid var(--border-color); border-radius: 5px; padding: 5px 10px; outline: none; background: var(--bg-box); color: var(--text-main); font-weight: bold; cursor: pointer; transition: all 0.3s ease; }
+
+/* Kutular ve Menüler */
+.menu-box, .lobby-box { background: var(--bg-box); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; border: 1px solid var(--border-color); transition: all 0.3s ease; }
+.lobby-box { max-width: 600px; }
+
+h1, h2, h3 { color: var(--text-heading); margin-bottom: 15px; transition: color 0.3s ease; }
+
+input[type="text"], input[type="number"] { width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 16px; outline: none; background: var(--bg-box); color: var(--text-main); transition: all 0.3s ease; }
+input:focus { border-color: var(--primary); box-shadow: 0 0 8px rgba(0,0,0,0.1); }
+
+button { width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.2s ease; background: var(--bg-light); color: var(--text-main); border: 1px solid var(--border-color); }
+button:hover { filter: brightness(0.9); transform: translateY(-2px); }
+.primary-btn { background: var(--primary); color: white; border: none; }
+.primary-btn:hover { background: var(--primary-hover); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+.danger-btn { background: var(--danger); color: white; border: none; }
+.danger-btn:hover { background: var(--danger-hover); }
+
+.join-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+.error-text { color: var(--danger); font-size: 14px; min-height: 20px; font-weight: bold; }
+
+/* Lobi İçeriği */
+.lobby-content { display: flex; gap: 20px; text-align: left; margin-bottom: 20px; }
+.player-list-section, .room-settings { flex: 1; background: var(--bg-light); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); }
+ul { list-style: none; }
+li { padding: 10px 0; border-bottom: 1px solid var(--border-color); font-weight: 500; }
+li span.host-badge { font-size: 12px; background: #f1c40f; color: #000; padding: 3px 8px; border-radius: 6px; margin-left: 5px; font-weight: bold; }
+
+/* Oyun Ekranı */
+#screen-game { flex-direction: column; padding: 20px; max-width: 1200px; margin: 0 auto; }
+.game-header { width: 100%; display: flex; justify-content: space-between; background: var(--bg-box); padding: 15px 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; font-weight: bold; font-size: 18px; border: 1px solid var(--border-color); }
+.word-hint { letter-spacing: 4px; color: var(--primary); font-size: 20px; }
+.game-layout { display: flex; width: 100%; height: calc(100vh - 140px); gap: 20px; }
+
+.scoreboard, .chat-container { width: 280px; background: var(--bg-box); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; border: 1px solid var(--border-color); }
+.scoreboard ul { padding: 15px; }
+
+.canvas-container { flex: 1; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color); }
+canvas { flex: 1; cursor: crosshair; background: #fff; /* Çizim alanı her temada beyaz kalmalı */ }
+.tools { padding: 12px; background: var(--bg-light); border-top: 1px solid var(--border-color); display: flex; gap: 15px; align-items: center; justify-content: center; }
+.tools button { width: auto; margin: 0; padding: 8px 20px; }
+
+.chat-container { flex-direction: column; }
+#chat-messages { flex: 1; padding: 15px; overflow-y: auto; font-size: 15px; border-bottom: 1px solid var(--border-color); background: var(--bg-light); }
+.chat-input-area { display: flex; padding: 12px; background: var(--bg-box); border-radius: 0 0 12px 12px; }
+#chat-input { margin: 0; border-radius: 6px 0 0 6px; border-right: none; }
+#btn-send { width: auto; margin: 0; border-radius: 0 6px 6px 0; background: var(--primary); color: white; border: none; }
+
+/* Modal / Popup */
+.overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 100; }
+.modal-box { background: var(--bg-box); padding: 40px; border-radius: 16px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.2); border: 1px solid var(--border-color); }
+.word-options { display: flex; gap: 15px; margin-top: 25px; }
+.word-btn { padding: 15px 25px; font-size: 18px; font-weight: bold; background: var(--primary); color: white; border: none; border-radius: 10px; cursor: pointer; transition: 0.2s; }
+.word-btn:hover { background: var(--primary-hover); transform: scale(1.05) translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
