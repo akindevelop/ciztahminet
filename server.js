@@ -9,7 +9,6 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 const rooms = {};
-// Daha geniş kelime havuzu
 const WORDS = ["ELMA", "ARABA", "BİLGİSAYAR", "KEDİ", "KÖPEK", "GÜNEŞ", "AĞAÇ", "TELEFON", "UÇAK", "DENİZ", "GÖZLÜK", "SAAT", "KİTAP", "AYAKKABI", "KALEM", "BİSİKLET", "ŞEMSİYE", "GÖMLEK", "KELEBEK", "KAPLUMBAĞA"];
 
 io.on('connection', (socket) => {
@@ -21,7 +20,8 @@ io.on('connection', (socket) => {
             players: [{ id: socket.id, name: username, score: 0, guessed: false }], 
             settings: { rounds: 3, time: 80 }, 
             state: 'lobby',
-            interval: null // Zamanlayıcı için eklendi
+            interval: null,
+            turnActive: false // Çifte tetiklenmeyi önleyecek kilit
         };
         socket.join(roomCode);
         socket.emit('roomJoined', { roomCode, isHost: true, players: rooms[roomCode].players });
@@ -40,26 +40,33 @@ io.on('connection', (socket) => {
         socket.to(roomCode).emit('updatePlayerList', room.players);
     });
 
-    socket.on('startGame', (roomCode) => {
+    // YENİ: Lobi ayarlarını da alıyoruz
+    socket.on('startGame', (data) => {
+        const { roomCode, rounds, time } = data;
         const room = rooms[roomCode];
         if (room && room.host === socket.id && room.players.length >= 2) {
-            room.state = 'playing'; room.currentRound = 1; room.drawerIndex = 0;
+            room.settings.rounds = rounds;
+            room.settings.time = time;
+            room.state = 'playing'; 
+            room.currentRound = 1; 
+            room.drawerIndex = 0;
             startTurn(roomCode);
-        } else {
-            socket.emit('menuError', 'Başlamak için en az 2 kişi olmalı!');
         }
     });
 
-    // TUR BAŞLATMA DÖNGÜSÜ
     function startTurn(roomCode) {
         const room = rooms[roomCode];
         if (!room) return;
 
-        clearInterval(room.interval); // Eski sayacı temizle
-        room.players.forEach(p => p.guessed = false); // Herkesin tahmin durumunu sıfırla
-        room.timeLeft = room.settings.time; // Süreyi başa al
+        clearInterval(room.interval);
+        room.turnActive = true; // Tur kilidini aç
+        room.currentWord = null; // Eski kelimeyi hafızadan sil
+        room.players.forEach(p => p.guessed = false);
+        room.timeLeft = room.settings.time;
         
         const drawer = room.players[room.drawerIndex];
+        if (!drawer) { endTurn(roomCode); return; } // Güvenlik ağı
+
         const shuffled = [...WORDS].sort(() => 0.5 - Math.random());
         const wordChoices = shuffled.slice(0, 3);
         
@@ -70,7 +77,7 @@ io.on('connection', (socket) => {
     socket.on('wordChosen', (data) => {
         const { roomCode, word } = data;
         const room = rooms[roomCode];
-        if(room) {
+        if(room && room.turnActive) {
             room.currentWord = word;
             const hiddenWord = word.replace(/./g, '_ '); 
             
@@ -79,16 +86,13 @@ io.on('connection', (socket) => {
             io.to(roomCode).emit('roundStarted', { time: room.settings.time, hiddenWord: hiddenWord, drawerId: room.players[room.drawerIndex].id });
             io.to(room.players[room.drawerIndex].id).emit('youAreDrawing', word);
 
-            // ZAMANLAYICIYI BAŞLAT
             room.interval = setInterval(() => {
                 room.timeLeft--;
-                io.to(roomCode).emit('timeUpdate', room.timeLeft); // Her saniye süreyi gönder
+                io.to(roomCode).emit('timeUpdate', room.timeLeft);
 
-                // Herkes bildi mi kontrolü (Çizer hariç)
-                const guessers = room.players.filter(p => p.id !== room.players[room.drawerIndex].id);
-                const allGuessed = guessers.every(p => p.guessed);
+                const guessers = room.players.filter(p => p.id !== room.players[room.drawerIndex]?.id);
+                const allGuessed = guessers.length > 0 && guessers.every(p => p.guessed);
 
-                // Süre biterse VEYA herkes bilirse turu bitir
                 if (room.timeLeft <= 0 || allGuessed) {
                     endTurn(roomCode);
                 }
@@ -96,27 +100,23 @@ io.on('connection', (socket) => {
         }
     });
 
-    // TUR BİTİRME DÖNGÜSÜ
     function endTurn(roomCode) {
         const room = rooms[roomCode];
-        if (!room) return;
-        
+        if (!room || !room.turnActive) return; // Çifte tetiklenme koruması!
+        room.turnActive = false; // Kilidi kapat
+
         clearInterval(room.interval);
-        io.to(roomCode).emit('turnEnded', { word: room.currentWord }); // Kelimeyi herkese açıkla
+        io.to(roomCode).emit('turnEnded', { word: room.currentWord || "Seçilmedi" });
 
-        // 5 saniye bekle ve yeni tura / oyuna geç
         setTimeout(() => {
-            if(!rooms[roomCode]) return; // Oda biz beklerken silindiyse iptal et
+            if(!rooms[roomCode]) return;
 
-            room.drawerIndex++; // Sıradaki çizere geç
-            
-            // Herkes bir kere çizdiyse yeni tura (round) geç
+            room.drawerIndex++;
             if (room.drawerIndex >= room.players.length) {
                 room.drawerIndex = 0;
                 room.currentRound++;
             }
 
-            // Turlar bittiyse oyunu bitir, bitmediyse yeni turu başlat
             if (room.currentRound > room.settings.rounds) {
                 io.to(roomCode).emit('gameEnded', room.players);
                 room.state = 'lobby'; 
@@ -138,8 +138,7 @@ io.on('connection', (socket) => {
         if (!player) return;
 
         if (room.state === 'playing' && room.currentWord && message.trim().toUpperCase() === room.currentWord.toUpperCase()) {
-            
-            if (room.players[room.drawerIndex].id === socket.id) {
+            if (room.players[room.drawerIndex]?.id === socket.id) {
                 return socket.emit('systemMessage', 'Kendi çizdiğin kelimeyi sohbete yazamazsın!');
             }
             if (player.guessed) {
@@ -147,7 +146,6 @@ io.on('connection', (socket) => {
             }
             
             player.guessed = true;
-            // Erken bilen ekstra puan alır!
             const timeBonus = Math.floor(room.timeLeft / 5);
             player.score += (10 + timeBonus); 
             room.players[room.drawerIndex].score += 5; 
@@ -162,25 +160,41 @@ io.on('connection', (socket) => {
     socket.on('disconnecting', () => {
         const currentRooms = Array.from(socket.rooms);
         currentRooms.forEach(roomCode => {
-            if (rooms[roomCode]) {
-                const isDrawer = (rooms[roomCode].state === 'playing' && rooms[roomCode].players[rooms[roomCode].drawerIndex]?.id === socket.id);
-                rooms[roomCode].players = rooms[roomCode].players.filter(p => p.id !== socket.id);
+            const room = rooms[roomCode];
+            if (room) {
+                const currentDrawerId = room.state === 'playing' ? room.players[room.drawerIndex]?.id : null;
+                const isDrawerLeaving = (currentDrawerId === socket.id);
+
+                room.players = room.players.filter(p => p.id !== socket.id);
                 
-                if (rooms[roomCode].players.length === 0) {
-                    clearInterval(rooms[roomCode].interval);
+                if (room.players.length === 0) {
+                    clearInterval(room.interval);
                     delete rooms[roomCode];
                 } else {
-                    if (rooms[roomCode].host === socket.id) {
-                        rooms[roomCode].host = rooms[roomCode].players[0].id;
-                        io.to(rooms[roomCode].host).emit('hostPromoted');
+                    if (room.host === socket.id) {
+                        room.host = room.players[0].id;
+                        io.to(room.host).emit('hostPromoted');
                     }
-                    io.to(roomCode).emit('updatePlayerList', rooms[roomCode].players);
-                    io.to(roomCode).emit('updateScoreboard', rooms[roomCode].players);
+                    io.to(roomCode).emit('updatePlayerList', room.players);
+                    io.to(roomCode).emit('updateScoreboard', room.players);
                     
-                    // Çizer oyundan çıkarsa turu iptal edip sonrakine atla
-                    if (isDrawer && rooms[roomCode].state === 'playing') {
-                        io.to(roomCode).emit('systemMessage', '⚠️ Çizen oyuncu ayrıldı! Tur bitiriliyor...');
-                        endTurn(roomCode);
+                    if (room.state === 'playing') {
+                        if (isDrawerLeaving) {
+                            io.to(roomCode).emit('systemMessage', '⚠️ Çizen oyuncu ayrıldı! Tur bitiriliyor...');
+                            // Çıkan çizerin yerini dolduracak yeni kişi için index'i koru
+                            room.drawerIndex--; 
+                            endTurn(roomCode);
+                        } else {
+                            // Çıkan kişi çizer değilse index kaymasını düzelt
+                            const newDrawerIndex = room.players.findIndex(p => p.id === currentDrawerId);
+                            if(newDrawerIndex !== -1) room.drawerIndex = newDrawerIndex;
+
+                            // Kalan herkes kelimeyi bilmiş mi diye tekrar kontrol et
+                            const guessers = room.players.filter(p => p.id !== currentDrawerId);
+                            if (guessers.length > 0 && guessers.every(p => p.guessed)) {
+                                endTurn(roomCode);
+                            }
+                        }
                     }
                 }
             }
@@ -188,6 +202,5 @@ io.on('connection', (socket) => {
     });
 });
 
-// Eğer sunucu bir port verirse onu kullan, vermezse 3000'i kullan
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`🚀 Sunucu ${PORT} portunda başarıyla çalışıyor!`); });
+server.listen(PORT, () => { console.log(`🚀 Sunucu ${PORT} portunda çalışıyor.`); });
