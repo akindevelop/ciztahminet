@@ -129,3 +129,49 @@ canvas { flex: 1; cursor: crosshair; background: #fff; /* Çizim alanı her tema
 .word-options { display: flex; gap: 15px; margin-top: 25px; }
 .word-btn { padding: 15px 25px; font-size: 18px; font-weight: bold; background: var(--primary); color: white; border: none; border-radius: 10px; cursor: pointer; transition: 0.2s; }
 .word-btn:hover { background: var(--primary-hover); transform: scale(1.05) translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+
+/* --- MOBİL UYUM (RESPONSIVE) --- */
+@media (max-width: 768px) {
+    /* Yan yana olan alanları alt alta diz */
+    .game-layout {
+        flex-direction: column;
+        height: auto; /* Yüksekliği serbest bırak */
+        overflow-y: auto;
+    }
+    
+    /* Tahta, Skor ve Chat mobilde %100 genişlik kaplasın */
+    .scoreboard, .chat-container, .canvas-container {
+        width: 100%;
+        max-height: 250px; /* Mobilde çok yer kaplamamaları için */
+    }
+    
+    .chat-container {
+        max-height: 300px;
+    }
+
+    /* Mobilde Tuvalin (Canvas) taşmasını engelle ve oranını koru */
+    canvas {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 4 / 3;
+        touch-action: none; /* KRİTİK: Çizim yaparken sayfanın aşağı kaymasını ENGELLER! */
+    }
+
+    /* Menü ve Lobiyi dar ekranlara uydur */
+    .lobby-content {
+        flex-direction: column;
+    }
+    .menu-box, .lobby-box {
+        padding: 20px;
+        margin: 10px;
+        width: 90%;
+    }
+    
+    /* Üst paneli mobilde daralt */
+    .game-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+        padding: 10px;
+    }
+}
