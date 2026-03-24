@@ -1,3 +1,120 @@
+const socket = io();
+
+// -- EKRANLAR VE MENÜLER --
+const screenMenu = document.getElementById('screen-menu');
+const screenLobby = document.getElementById('screen-lobby');
+const screenGame = document.getElementById('screen-game');
+const usernameInput = document.getElementById('username-input');
+const roomCodeInput = document.getElementById('room-code-input');
+const btnCreateRoom = document.getElementById('btn-create-room');
+const btnJoinRoom = document.getElementById('btn-join-room');
+const menuError = document.getElementById('menu-error');
+const lobbyRoomCode = document.getElementById('lobby-room-code');
+const lobbyPlayers = document.getElementById('lobby-players');
+const playerCount = document.getElementById('player-count');
+const hostSettings = document.getElementById('host-settings');
+const btnLeaveLobby = document.getElementById('btn-leave-lobby');
+const btnStartGame = document.getElementById('btn-start-game'); 
+
+const wordSelectionOverlay = document.getElementById('word-selection-overlay');
+const wordOptions = document.getElementById('word-options');
+const wordHint = document.getElementById('word-hint');
+const drawingTools = document.getElementById('drawing-tools');
+const gameRound = document.getElementById('game-round');
+const gamePlayersList = document.getElementById('game-players');
+const gameTimeDisplay = document.getElementById('game-time'); // Süre göstergesi
+
+let currentRoom = null;
+let isHost = false;
+let myRole = 'guesser'; 
+
+function showScreen(screen) {
+    screenMenu.classList.add('hidden'); screenLobby.classList.add('hidden'); screenGame.classList.add('hidden');
+    screen.classList.remove('hidden');
+}
+
+btnCreateRoom.addEventListener('click', () => {
+    const username = usernameInput.value.trim();
+    if (!username) return menuError.textContent = "Lütfen kullanıcı adı girin.";
+    socket.emit('createRoom', username);
+});
+
+btnJoinRoom.addEventListener('click', () => {
+    const username = usernameInput.value.trim(); const roomCode = roomCodeInput.value.trim().toUpperCase();
+    if (!username || !roomCode) return menuError.textContent = "Eksik bilgi girdiniz.";
+    socket.emit('joinRoom', { username, roomCode });
+});
+
+btnLeaveLobby.addEventListener('click', () => window.location.reload());
+
+socket.on('menuError', (errorMsg) => { menuError.textContent = errorMsg; alert(errorMsg); });
+
+socket.on('roomJoined', (data) => {
+    currentRoom = data.roomCode; isHost = data.isHost; lobbyRoomCode.textContent = currentRoom;
+    hostSettings.style.display = isHost ? 'block' : 'none'; updateLobbyPlayers(data.players); showScreen(screenLobby);
+});
+
+socket.on('updatePlayerList', (players) => updateLobbyPlayers(players));
+socket.on('hostPromoted', () => { isHost = true; hostSettings.style.display = 'block'; });
+
+function updateLobbyPlayers(players) {
+    lobbyPlayers.innerHTML = ''; playerCount.textContent = players.length;
+    players.forEach((p, index) => {
+        const li = document.createElement('li'); li.textContent = p.name;
+        if (index === 0) { const span = document.createElement('span'); span.className = 'host-badge'; span.textContent = 'Kurucu'; li.appendChild(span); }
+        lobbyPlayers.appendChild(li);
+    });
+}
+
+// --- OYUN AKIŞI ---
+btnStartGame.addEventListener('click', () => { if (currentRoom && isHost) socket.emit('startGame', currentRoom); });
+
+socket.on('gameStarted', (data) => {
+    showScreen(screenGame); gameRound.textContent = `${data.round}/${data.totalRounds}`;
+    wordHint.textContent = `${data.drawerName} kelime seçiyor...`; drawingTools.style.display = 'none';
+});
+
+socket.on('chooseWord', (words) => {
+    wordOptions.innerHTML = '';
+    words.forEach(w => {
+        const btn = document.createElement('button'); btn.className = 'word-btn'; btn.textContent = w;
+        btn.onclick = () => { socket.emit('wordChosen', { roomCode: currentRoom, word: w }); wordSelectionOverlay.classList.add('hidden'); };
+        wordOptions.appendChild(btn);
+    });
+    wordSelectionOverlay.classList.remove('hidden');
+});
+
+socket.on('roundStarted', (data) => {
+    myRole = (socket.id === data.drawerId) ? 'drawer' : 'guesser';
+    if (myRole === 'guesser') { drawingTools.style.display = 'none'; wordHint.textContent = data.hiddenWord; }
+    gameTimeDisplay.textContent = data.time;
+});
+
+socket.on('youAreDrawing', (word) => { drawingTools.style.display = 'flex'; wordHint.textContent = `Çiziyorsun: ${word}`; });
+
+// --- YENİ EKLENEN: SÜRE, TUR SONU VE OYUN SONU KONTROLLERİ ---
+socket.on('timeUpdate', (time) => {
+    gameTimeDisplay.textContent = time; // Ekranda süreyi geriye saydır
+});
+
+socket.on('turnEnded', (data) => {
+    drawingTools.style.display = 'none'; // Kalemleri herkesten al
+    wordHint.textContent = `TUR BİTTİ! Kelime: ${data.word}`;
+    
+    // Sohbete bilgi düş
+    chatMessages.innerHTML += `<div style="padding:5px; color:#e74c3c; font-weight:bold; text-align:center;">⏱️ Tur bitti! Doğru cevap: ${data.word}</div>`;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+socket.on('gameEnded', (players) => {
+    // Puanları büyükten küçüğe sırala
+    const sorted = players.sort((a, b) => b.score - a.score);
+    const winner = sorted[0];
+    
+    alert(`🏆 OYUN BİTTİ!\n\nBirinci: ${winner.name} (${winner.score} Puan)\n\nOynadığınız için teşekkürler!`);
+    window.location.reload(); // Oyun bitince herkesi başlangıca gönder
+});
+
 // --- ÇİZİM MOTORU (PC + MOBİL UYUMLU) ---
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -81,3 +198,53 @@ btnClear.addEventListener('click', () => {
     socket.emit('clearCanvas', currentRoom);
 });
 socket.on('clearCanvas', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+
+// --- SOHBET VE PUAN TABLOSU ---
+const chatInput = document.getElementById('chat-input');
+const btnSend = document.getElementById('btn-send');
+const chatMessages = document.getElementById('chat-messages');
+
+function sendMessage() {
+    const msg = chatInput.value.trim();
+    if (msg && currentRoom) {
+        socket.emit('chatMessage', { roomCode: currentRoom, message: msg });
+        chatInput.value = '';
+    }
+}
+btnSend.addEventListener('click', sendMessage);
+chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+socket.on('chatMessage', (data) => {
+    chatMessages.innerHTML += `<div style="padding:5px; border-bottom:1px solid #eee;"><strong>${data.name}:</strong> ${data.text}</div>`;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+socket.on('systemMessage', (msg) => {
+    chatMessages.innerHTML += `<div style="padding:5px; color:#27ae60; font-weight:bold; background:#e8f8f5;">${msg}</div>`;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+socket.on('updateScoreboard', (players) => {
+    gamePlayersList.innerHTML = '';
+    const sorted = players.sort((a, b) => b.score - a.score);
+    sorted.forEach(p => {
+        const li = document.createElement('li');
+        li.innerHTML = `${p.name} <span style="float:right; font-weight:bold; color:#3498db;">${p.score} Puan</span>`;
+        gamePlayersList.appendChild(li);
+    });
+});
+
+// --- YENİ EKLENEN: TEMA MOTORU ---
+const themeSelect = document.getElementById('theme-select');
+
+// Tarayıcı hafızasında kaydedilmiş bir tema varsa onu yükle, yoksa Klasik yap
+const savedTheme = localStorage.getItem('cizimOyunuTema') || 'theme-classic';
+document.body.className = savedTheme;
+themeSelect.value = savedTheme;
+
+// Kullanıcı menüden temayı değiştirdiğinde
+themeSelect.addEventListener('change', (e) => {
+    const selectedTheme = e.target.value;
+    document.body.className = selectedTheme; // Arka planı anında değiştir
+    localStorage.setItem('cizimOyunuTema', selectedTheme); // Yarın girdiğinde aynı kalsın diye kaydet
+});
