@@ -21,7 +21,7 @@ io.on('connection', (socket) => {
             settings: { rounds: 3, time: 80 }, 
             state: 'lobby',
             interval: null,
-            turnActive: false // Çifte tetiklenmeyi önleyecek kilit
+            turnActive: false
         };
         socket.join(roomCode);
         socket.emit('roomJoined', { roomCode, isHost: true, players: rooms[roomCode].players });
@@ -40,7 +40,6 @@ io.on('connection', (socket) => {
         socket.to(roomCode).emit('updatePlayerList', room.players);
     });
 
-    // YENİ: Lobi ayarlarını da alıyoruz
     socket.on('startGame', (data) => {
         const { roomCode, rounds, time } = data;
         const room = rooms[roomCode];
@@ -51,6 +50,8 @@ io.on('connection', (socket) => {
             room.currentRound = 1; 
             room.drawerIndex = 0;
             startTurn(roomCode);
+        } else if (room && room.players.length < 2) {
+            socket.emit('menuError', 'Başlamak için en az 2 kişi olmalı!');
         }
     });
 
@@ -59,13 +60,13 @@ io.on('connection', (socket) => {
         if (!room) return;
 
         clearInterval(room.interval);
-        room.turnActive = true; // Tur kilidini aç
-        room.currentWord = null; // Eski kelimeyi hafızadan sil
+        room.turnActive = true; 
+        room.currentWord = null; 
         room.players.forEach(p => p.guessed = false);
         room.timeLeft = room.settings.time;
         
         const drawer = room.players[room.drawerIndex];
-        if (!drawer) { endTurn(roomCode); return; } // Güvenlik ağı
+        if (!drawer) { endTurn(roomCode); return; }
 
         const shuffled = [...WORDS].sort(() => 0.5 - Math.random());
         const wordChoices = shuffled.slice(0, 3);
@@ -102,8 +103,8 @@ io.on('connection', (socket) => {
 
     function endTurn(roomCode) {
         const room = rooms[roomCode];
-        if (!room || !room.turnActive) return; // Çifte tetiklenme koruması!
-        room.turnActive = false; // Kilidi kapat
+        if (!room || !room.turnActive) return; 
+        room.turnActive = false; 
 
         clearInterval(room.interval);
         io.to(roomCode).emit('turnEnded', { word: room.currentWord || "Seçilmedi" });
@@ -181,15 +182,12 @@ io.on('connection', (socket) => {
                     if (room.state === 'playing') {
                         if (isDrawerLeaving) {
                             io.to(roomCode).emit('systemMessage', '⚠️ Çizen oyuncu ayrıldı! Tur bitiriliyor...');
-                            // Çıkan çizerin yerini dolduracak yeni kişi için index'i koru
                             room.drawerIndex--; 
                             endTurn(roomCode);
                         } else {
-                            // Çıkan kişi çizer değilse index kaymasını düzelt
                             const newDrawerIndex = room.players.findIndex(p => p.id === currentDrawerId);
                             if(newDrawerIndex !== -1) room.drawerIndex = newDrawerIndex;
 
-                            // Kalan herkes kelimeyi bilmiş mi diye tekrar kontrol et
                             const guessers = room.players.filter(p => p.id !== currentDrawerId);
                             if (guessers.length > 0 && guessers.every(p => p.guessed)) {
                                 endTurn(roomCode);
