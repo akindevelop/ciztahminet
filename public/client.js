@@ -67,11 +67,13 @@ function updateLobbyPlayers(players) {
 }
 
 // --- OYUN AKIŞI ---
-btnStartGame.addEventListener('click', () => { if (currentRoom && isHost) socket.emit('startGame', currentRoom); });
-
-socket.on('gameStarted', (data) => {
-    showScreen(screenGame); gameRound.textContent = `${data.round}/${data.totalRounds}`;
-    wordHint.textContent = `${data.drawerName} kelime seçiyor...`; drawingTools.style.display = 'none';
+btnStartGame.addEventListener('click', () => { 
+    if (currentRoom && isHost) {
+        // Lobideki ayarları alıp sunucuya yolluyoruz
+        const rounds = parseInt(document.getElementById('setting-rounds').value) || 3;
+        const time = parseInt(document.getElementById('setting-time').value) || 80;
+        socket.emit('startGame', { roomCode: currentRoom, rounds: rounds, time: time }); 
+    }
 });
 
 socket.on('chooseWord', (words) => {
